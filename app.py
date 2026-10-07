@@ -51,10 +51,6 @@ class ChatRequest(BaseModel):
 @app.get("/api/health")
 def health():
     return {"ready": kb.ready, "chunks": len(kb.chunks), "error": startup_error}
-        "key_length": len(key),
-        "key_starts_with": key[:4],
-        "model": CHAT_MODEL,
-    }
 
 
 @app.post("/api/chat")
