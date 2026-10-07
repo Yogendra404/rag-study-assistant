@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lumora Help Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #e9edf2;
+    --panel: #ffffff;
+    --ink: #172033;
+    --muted: #5d6a80;
+    --line: #d3dae4;
+    --glow: #f2a93b;
+    --glow-soft: #fff3dc;
+    --user: #172033;
+    --error-bg: #fde8e6;
+    --error-ink: #8c1d14;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1522; --panel: #182134; --ink: #e8edf5; --muted: #93a0b8;
+      --line: #2a3650; --glow-soft: #3a2d14; --user: #f2a93b;
+      --error-bg: #3a1a17; --error-ink: #ffb4aa;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: Inter, system-ui, sans-serif; background: var(--bg); color: var(--ink);
+    display: flex; justify-content: center;
+  }
+  .app { width: 100%; max-width: 760px; height: 100%; display: flex; flex-direction: column; padding: 20px 16px 16px; }
+  header { padding: 4px 4px 16px; }
+  h1 { font-family: "Bricolage Grotesque", sans-serif; font-size: 28px; margin: 0 0 4px; letter-spacing: -0.5px; }
+  header p { margin: 0; color: var(--muted); font-size: 14px; }
+  .lamp { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: var(--glow);
+          box-shadow: 0 0 12px 3px var(--glow); margin-right: 8px; vertical-align: middle; }
+  #log { flex: 1; overflow-y: auto; padding: 8px 4px; display: flex; flex-direction: column; gap: 14px; }
+  .msg { max-width: 88%; padding: 12px 14px; border-radius: 14px; line-height: 1.5; font-size: 15px;
+         white-space: pre-wrap; word-wrap: break-word; }
+  .msg.user { align-self: flex-end; background: var(--user); color: var(--bg); border-bottom-right-radius: 4px; }
+  .msg.bot { align-self: flex-start; background: var(--panel); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+  .msg.bot.unknown { background: var(--glow-soft); border-color: var(--glow); }
+  .sources { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line); font-size: 12.5px; color: var(--muted); }
+  .sources summary { cursor: pointer; }
+  .sources blockquote { margin: 6px 0 0; padding-left: 10px; border-left: 3px solid var(--glow); }
+  .error { align-self: stretch; background: var(--error-bg); color: var(--error-ink); border-radius: 10px;
+           padding: 10px 14px; font-size: 14px; display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+  .error button { background: transparent; border: 1px solid currentColor; color: inherit; border-radius: 8px;
+                  padding: 4px 10px; cursor: pointer; font: inherit; }
+  .dots span { display: inline-block; width: 7px; height: 7px; margin: 0 2px; border-radius: 50%;
+               background: var(--muted); animation: blink 1.2s infinite both; }
+  .dots span:nth-child(2) { animation-delay: .2s; } .dots span:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: .2; } 40% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .dots span { animation: none; opacity: .6; } }
+  .suggestions { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px; }
+  .suggestions button { background: var(--panel); border: 1px solid var(--line); color: var(--ink);
+                        padding: 8px 12px; border-radius: 999px; cursor: pointer; font: inherit; font-size: 13.5px; }
+  .suggestions button:hover { border-color: var(--glow); }
+  form { display: flex; gap: 8px; padding-top: 12px; }
+  input[type=text] { flex: 1; padding: 13px 14px; border-radius: 12px; border: 1px solid var(--line);
+                     background: var(--panel); color: var(--ink); font: inherit; font-size: 15px; }
+  input[type=text]:focus, button:focus-visible, summary:focus-visible { outline: 3px solid var(--glow); outline-offset: 1px; }
+  form button { padding: 0 20px; border: 0; border-radius: 12px; background: var(--glow); color: #2b1d02;
+                font-weight: 500; font: inherit; font-weight: 500; cursor: pointer; }
+  form button:disabled, input:disabled { opacity: .55; cursor: not-allowed; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1><span class="lamp"></span>Lumora Help Assistant</h1>
+    <p>Ask anything about the Lumora Smart Lamp. Answers come from the product documentation.</p>
+  </header>
+
+  <div id="log" aria-live="polite">
+    <div class="suggestions" id="suggestions">
+      <button type="button">How do I factory reset the lamp?</button>
+      <button type="button">How long is the warranty?</button>
+      <button type="button">What is the capital of France?</button>
+    </div>
+  </div>
+
+  <form id="form">
+    <input type="text" id="input" placeholder="Ask a question..." autocomplete="off" maxlength="1000" required>
+    <button type="submit" id="send">Send</button>
+  </form>
+</div>
+
+<script>
+  const log = document.getElementById("log");
+  const form = document.getElementById("form");
+  const input = document.getElementById("input");
+  const send = document.getElementById("send");
+  const history = [];
+  let lastQuestion = null;
+
+  function scrollDown() { log.scrollTop = log.scrollHeight; }
+
+  function addMessage(role, text, extra = {}) {
+    const div = document.createElement("div");
+    div.className = "msg " + role + (extra.unknown ? " unknown" : "");
+    div.textContent = text;  // textContent (not innerHTML) -> no XSS from model output
+    if (extra.sources && extra.sources.length) {
+      const det = document.createElement("details");
+      det.className = "sources";
+      const sum = document.createElement("summary");
+      sum.textContent = "Sources (" + extra.sources.length + ")";
+      det.appendChild(sum);
+      extra.sources.forEach(s => {
+        const q = document.createElement("blockquote");
+        q.textContent = s.source + ": " + s.snippet + "...";
+        det.appendChild(q);
+      });
+      div.appendChild(det);
+    }
+    log.appendChild(div);
+    scrollDown();
+    return div;
+  }
+
+  function addLoading() {
+    const div = document.createElement("div");
+    div.className = "msg bot";
+    div.innerHTML = '<span class="dots" aria-label="Thinking"><span></span><span></span><span></span></span>';
+    log.appendChild(div);
+    scrollDown();
+    return div;
+  }
+
+  function addError(message) {
+    const div = document.createElement("div");
+    div.className = "error";
+    div.setAttribute("role", "alert");
+    const span = document.createElement("span");
+    span.textContent = message;
+    const btn = document.createElement("button");
+    btn.textContent = "Try again";
+    btn.onclick = () => { div.remove(); if (lastQuestion) ask(lastQuestion, true); };
+    div.append(span, btn);
+    log.appendChild(div);
+    scrollDown();
+  }
+
+  function setBusy(busy) { input.disabled = busy; send.disabled = busy; }
+
+  async function ask(question, isRetry = false) {
+    lastQuestion = question;
+    const sug = document.getElementById("suggestions");
+    if (sug) sug.remove();
+    if (!isRetry) addMessage("user", question);
+    setBusy(true);
+    const loading = addLoading();
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: question, history: history.slice(-6) })
+      });
+      loading.remove();
+      if (!res.ok) {
+        let detail = "Something went wrong (status " + res.status + ").";
+        try { const j = await res.json(); if (j.detail) detail = j.detail; } catch (_) {}
+        addError(detail);
+        return;
+      }
+      const data = await res.json();
+      addMessage("bot", data.answer, { sources: data.sources, unknown: !data.answerable });
+      history.push({ role: "user", content: question }, { role: "assistant", content: data.answer });
+    } catch (err) {
+      loading.remove();
+      addError("Could not reach the server. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+      input.focus();
+    }
+  }
+
+  form.addEventListener("submit", e => {
+    e.preventDefault();
+    const q = input.value.trim();
+    if (!q) return;
+    input.value = "";
+    ask(q);
+  });
+
+  document.querySelectorAll("#suggestions button").forEach(b =>
+    b.addEventListener("click", () => ask(b.textContent)));
+</script>
+</body>
+</html>
